@@ -6,7 +6,6 @@
 module DevelMain (update) where
 
 import Control.Concurrent
-import Control.Exception
 import Rapid
 import Rapid.Term
 import System.IO
@@ -17,9 +16,8 @@ update =
     rapid 0 $ \r -> do
         t <- createRef r "term-ref" newTermRef
         start r "term" (runTerm (urxvtAt "./urxvt") t)
-        restart r "test-app" $
-            terminal t $ \h ->
-                let putLn = hPutStrLn h in
-                bracket_ (putLn "--- APPLICATION START ---")
-                         (putLn "--- APPLICATION STOP ---")
-                         (threadDelay 10000000)
+        restart r "test-app" . stats t $
+            terminal t $ \h -> do
+                hPutStrLn h "blah"
+                3^5000000 `seq` threadDelay 1000000
+                hPutStrLn h "blubb"

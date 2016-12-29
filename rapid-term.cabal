@@ -41,6 +41,7 @@ library
     build-depends:
         ansi-terminal >= 0.6 && < 1,
         base >= 4.8 && < 5,
+        clock >= 0.7 && < 1,
         kan-extensions >= 5.0 && < 6,
         process >= 1.4 && < 2,
         unix >= 2.7 && < 3

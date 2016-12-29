@@ -20,7 +20,10 @@ module Rapid.Term
       -- ** rxvt-unicode
       urxvt,
       urxvtc,
-      urxvtAt
+      urxvtAt,
+
+      -- * Helper functions
+      stats
     )
     where
 
@@ -29,12 +32,14 @@ import Control.Exception
 import Control.Monad.Codensity
 import Control.Monad.IO.Class
 import Data.IORef
+import System.Clock
 import System.IO
 import System.Mem.Weak
 import System.Posix.IO
 import System.Posix.Terminal
 import System.Posix.Types
 import System.Process
+import Text.Printf
 
 
 -- | Handle to a terminal
@@ -62,6 +67,28 @@ runTerm start var =
             bracket_ (unmask (putMVar var t))
                      (takeMVar var)
                      (unmask (waitTerm t))
+
+
+-- | Write execution diagnostics for the given action to the given
+-- terminal
+
+stats :: MVar Term -> IO a -> IO ()
+stats tRef c =
+    terminal tRef $ \h -> do
+        hPutStrLn h "\n--- App start"
+        rt0 <- getTime Monotonic
+        ct0 <- getTime ProcessCPUTime
+        mx <- try c
+        ct1 <- getTime ProcessCPUTime
+        rt1 <- getTime Monotonic
+        case mx of
+          Left (SomeException ex) -> do
+              hPutStrLn h "*** Unhandled exception:"
+              hPutStr h . unlines . map ("      " ++) . lines . show $ ex
+          Right _ -> hPutStrLn h "--- App stop"
+        let dt t0 t1 = fromInteger (toNanoSecs (t1 - t0)) / 1e9 :: Double
+        hPrintf h "Real time: %8.4f secs\n" (dt rt0 rt1)
+        hPrintf h "CPU time:  %8.4f secs\n" (dt ct0 ct1)
 
 
 -- | Provide a file descriptor to the given terminal
