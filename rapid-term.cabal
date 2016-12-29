@@ -1,7 +1,7 @@
 name:     rapid-term
 version:  0.1.0
-category: 
-synopsis: 
+category: Development
+synopsis: External terminal support for rapid
 
 maintainer:   Ertugrul Söylemez <esz@posteo.de>
 author:       Ertugrul Söylemez <esz@posteo.de>
@@ -11,7 +11,17 @@ bug-reports:  https://github.com/esoeylemez/rapid-term/issues
 license:      BSD3
 license-file: LICENSE
 
-description: 
+description:  When developing interactive command line applications in
+    an editor like Emacs GHCi typically has no access to an actual
+    terminal.  This is good enough for applications that only read lines
+    from stdin and print diagnostics to stdout, but as soon as terminal
+    functionality is needed, the application has to be tested elsewhere.
+    .
+    This package provides functionality that, when used together with
+    the <https://hackage.haskell.org/package/rapid rapid library>, can
+    open a persistent terminal that the application can access directly,
+    such that terminal applications can be tested directly with the main
+    GHCi instance.
 
 build-type:         Simple
 cabal-version:      >= 1.10
@@ -26,51 +36,18 @@ flag Devel
     description: Development dependencies
     manual: True
 
-flag Examples
-    default: False
-    description: Build the example programs
-    manual: True
-
 
 library
     build-depends:
-        base >= 4.8 && < 5
+        ansi-terminal >= 0.6 && < 1,
+        base >= 4.8 && < 5,
+        kan-extensions >= 5.0 && < 6,
+        process >= 1.4 && < 2,
+        unix >= 2.7 && < 3
     if flag(devel)
         build-depends: rapid
     default-language: Haskell2010
     ghc-options: -W -fdefer-typed-holes
+    hs-source-dirs: src
     exposed-modules:
-
-executable rapid-term
-    build-depends:
-        base >= 4.8 && < 5,
-        rapid-term
-    default-language: Haskell2010
-    ghc-options: -W -threaded -fdefer-typed-holes
-    hs-source-dirs: programs
-    main-is: rapid-term.hs
-
-executable rapid-term-experiment
-    if flag(examples)
-        build-depends:
-            base >= 4.8 && < 5,
-            rapid-term
-    else
-        buildable: False
-    default-language: Haskell2010
-    ghc-options: -threaded -fdefer-typed-holes
-    hs-source-dirs: examples
-    main-is: experiment.hs
-
-test-suite tests
-    type: exitcode-stdio-1.0
-    build-depends:
-        base >= 4.8 && < 5,
-        smallcheck,
-        tasty,
-        tasty-smallcheck,
-        rapid-term
-    default-language: Haskell2010
-    ghc-options: -W -threaded -with-rtsopts=-N -fdefer-typed-holes
-    hs-source-dirs: tests
-    main-is: Props.hs
+        Rapid.Term
