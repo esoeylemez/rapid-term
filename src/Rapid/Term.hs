@@ -23,6 +23,7 @@ module Rapid.Term
       urxvtAt,
 
       -- * Helper functions
+      redirect,
       stats
     )
     where
@@ -32,6 +33,7 @@ import Control.Exception
 import Control.Monad.Codensity
 import Control.Monad.IO.Class
 import Data.IORef
+import GHC.IO.Handle
 import System.Clock
 import System.IO
 import System.Mem.Weak
@@ -51,10 +53,32 @@ data Term =
     }
 
 
+-- | Streamlined version of 'bracket' using 'Codensity'
+
+cBracket :: IO a -> (a -> IO b) -> Codensity IO a
+cBracket c o = Codensity (bracket c o)
+
+
 -- | Create a new terminal reference.
 
 newTermRef :: IO (MVar Term)
 newTermRef = newEmptyMVar
+
+
+-- | Redirect the standard handles to the given terminal for the
+-- duration of the given action
+
+redirect :: MVar Term -> IO a -> IO a
+redirect tRef c =
+    lowerCodensity $ do
+        h <- Codensity (terminal tRef)
+        oldE <- cBracket (hDuplicate stderr) hClose
+        oldI <- cBracket (hDuplicate stdin) hClose
+        oldO <- cBracket (hDuplicate stdout) hClose
+        cBracket (hDuplicateTo h stderr) (\_ -> hDuplicateTo oldE stderr)
+        cBracket (hDuplicateTo h stdin) (\_ -> hDuplicateTo oldI stdin)
+        cBracket (hDuplicateTo h stdout) (\_ -> hDuplicateTo oldO stdout)
+        liftIO c
 
 
 -- | Start a terminal and update the given terminal reference for use
@@ -202,9 +226,6 @@ withTerm start k =
                            })))
 
     where
-    cBracket :: IO a -> (a -> IO b) -> Codensity IO a
-    cBracket c o = Codensity (bracket c o)
-
     cFinally :: IO a -> Codensity IO ()
     cFinally c = Codensity (\k -> k () `finally` c)
 

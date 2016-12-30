@@ -16,8 +16,7 @@ update =
     rapid 0 $ \r -> do
         t <- createRef r "term-ref" newTermRef
         start r "term" (runTerm (urxvtAt "./urxvt") t)
-        restart r "test-app" . stats t $
-            terminal t $ \h -> do
-                hPutStrLn h "blah"
-                3^5000000 `seq` threadDelay 1000000
-                hPutStrLn h "blubb"
+        restart r "test-app" . stats t . redirect t $ do
+            putStrLn "blah"
+            3^5000000 `seq` threadDelay 1000000
+            putStrLn "blubb"
