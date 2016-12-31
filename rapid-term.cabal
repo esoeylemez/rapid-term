@@ -46,7 +46,8 @@ library
         base >= 4.8 && < 5,
         clock >= 0.7 && < 1,
         kan-extensions >= 5.0 && < 6,
-        process >= 1.4 && < 2,
+        process >= 1.2 && < 2,
+        transformers >= 0.2 && < 1,
         unix >= 2.7 && < 3
     if flag(devel)
         build-depends: rapid
