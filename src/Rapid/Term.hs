@@ -2,9 +2,26 @@
 -- Copyright:  (c) 2016 Ertugrul Söylemez
 -- License:    BSD3
 -- Maintainer: Ertugrul Söylemez <esz@posteo.de>
+--
+-- When developing interactive command line applications in an editor
+-- like Emacs GHCi typically has no access to an actual terminal.  This
+-- is good enough for applications that only read lines from stdin and
+-- print diagnostics to stdout, but as soon as terminal functionality is
+-- needed, the application has to be tested elsewhere.
+--
+-- This package provides functionality that, when used together with the
+-- <https://hackage.haskell.org/package/rapid rapid library>, can open a
+-- persistent terminal that the application can access directly, such
+-- that terminal applications can be tested with the main GHCi instance.
 
 module Rapid.Term
-    ( -- * Terminal support for Rapid
+    ( -- * Tutorial
+      -- $tutorial
+
+      -- ** Vty
+      -- $vty
+
+      -- * Terminal support for Rapid
       Term,
       newTermRef,
       runTerm,
@@ -210,3 +227,183 @@ withTerm start k =
 
     cOnException :: IO a -> Codensity IO ()
     cOnException c = Codensity (\k -> k () `onException` c)
+
+
+{- $tutorial
+
+This tutorial assumes that you are already familiar with the
+<https://hackage.haskell.org/package/rapid rapid library>, and that you
+use <http://software.schmorp.de/pkg/rxvt-unicode.html rxvt-unicode> (or
+at least have it installed).
+
+Say you are writing a terminal application that requires an actual
+terminal that you would like to test during development.  For example
+you are using ANSI control sequences, or perhaps you're even using a
+text UI based on <https://hackage.haskell.org/package/vty Vty>.  Ideally
+you could use the running GHCi instance, but if you're using an editor
+like Emacs and haskell-interactive-mode, then that's not possible
+/directly/, because it's not attached to a terminal.
+
+This library provides a way to fire up a separate, potentially
+persistent terminal as a subprocess and communicate with it through one
+or more 'Handle's.
+
+The first step to using this library is to abstract over the 'Handle's
+you want to use:
+
+> module Main (main) where
+>
+> import System.IO
+>
+> mainWith :: Handle -> Handle -> Handle -> IO ()
+> mainWith hI hO hE = {- ... -}
+>
+> main :: IO ()
+> main = mainWith stdin stdout stderr
+
+In other words: you no longer use the built-in handles, but do all your
+input and output in @mainWith@ by reading from and writing to the
+handles explicitly passed to it.  Let's use an example program that
+reads a line from the input handle and writes it to the output handle:
+
+> import Control.Concurrent
+> import System.IO
+>
+> mainWith :: Handle -> Handle -> Handle -> IO ()
+> mainWith hI hO _ = do
+>     hPutStr hO "Type something: "
+>     hFlush hO
+>     line <- hGetLine hI
+>
+>     hPutStrLn hO "Wait for it..."
+>     threadDelay 2000000
+>     hPutStrLn hO ("You typed: " ++ line)
+
+Now in your @DevelMain@ module you need three things:
+
+  * a terminal reference,
+
+  * a terminal thread,
+
+  * a thread that calls your application.
+
+This amounts to the following @update@ action:
+
+> module DevelMain (update) where
+>
+> import Main (mainWith)
+> import Rapid
+> import Rapid.Term
+>
+> update :: IO ()
+> update =
+>     rapid 0 $ \r -> do
+>         -- Create the terminal reference
+>         t <- createRef r "term-ref" newTermRef
+>
+>         -- Thread for the terminal
+>         start r "term" (runTerm urxvt t)
+>
+>         -- Thread for your application
+>         restart r "my-app" . terminal t $ \h ->
+>             mainWith h h h
+
+Now if you use @update@ an rxvt-unicode terminal will pop up and run
+@mainWith@, which will prompt you to type something.  Once you type a
+line into that terminal, @mainWith@ will finish.  When you @update@
+again, it will start over in the same terminal.  If you actually want to
+open a new terminal every invocation, just use @restart@ instead of
+@start@ for the terminal thread.
+
+You can have as many application threads using the terminal concurrently
+as you want.  Also you can request multiple handles to the terminal
+e.g. to have different buffering modes for each:
+
+> restart r "my-app" . terminal t $ \hI ->
+>     terminal t $ \hO ->
+>         mainWith hI hO hO
+
+If you would like to see a few diagnostics after each application run,
+just wrap your terminal action by 'stats':
+
+> restart r "test-app" . stats t . terminal t $ \h ->
+>     mainWith h h h
+
+This also makes it easier to see when the application is finished,
+because otherwise there would be no indication.
+
+Note: While we have abstracted over three handles above there is no
+technical reason to do that.  If you don't actually use, say, stderr in
+your application, there is no reason to abstract over it:
+
+> mainWith :: Handle -> Handle -> IO ()
+> mainWith hI hO = {- ... -}
+
+-}
+
+
+{- $vty
+
+Running Vty applications requires some minor setup to work properly.
+First of all instead of abstracting over input/output handles you should
+abstract over the @Vty@ handle instead.  Let's write a very simple
+example application:
+
+> module Main (main) where
+>
+> import Graphics.Vty
+>
+> mainWith :: Vty -> IO ()
+> mainWith vty = go ""
+>     where
+>     go inp = do
+>         let pic = picForImage $
+>                   string defAttr "Type some text:" <->
+>                   string defAttr inp
+>
+>         update vty pic
+>         ev <- nextEvent vty
+>         case ev of
+>           EvKey (KChar c) _ -> go (inp ++ [c])
+>           EvKey KEsc _ -> pure ()
+>           _ -> go inp
+>
+> main :: IO ()
+> main = do
+>     cfg <- standardIOConfig
+>     bracket (mkVty cfg) shutdown mainWith
+
+Now in your @DevelMain@ module you create the terminal reference and
+thread as usual, but in your application thread you use 'termFd' to get
+a file descriptor instead of a 'Handle', which is exactly what Vty
+needs:
+
+> module DevelMain (update) where
+>
+> import Control.Exception
+> import qualified Graphics.Vty as Vty
+> import Rapid
+> import Rapid.Term
+>
+> update :: IO ()
+> update =
+>     rapid 0 $ \r -> do
+>         t <- createRef r "term-ref" newTermRef
+>         start r "term" (runTerm urxvt t)
+>         restart r "test-app" . stats t . termFd t $ \fd -> do
+>             cfg' <- Vty.standardIOConfig
+>             let cfg = cfg' {
+>                         Vty.inputFd = Just fd,
+>                         Vty.outputFd = Just fd,
+>                         Vty.termName = Just "rxvt-unicode-256color"
+>                       }
+>             bracket (Vty.mkVty cfg) Vty.shutdown mainWith
+
+So the main differences are that you need to tell Vty explicitly which
+handles it should use, and that you should probably also set the name of
+the terminal explicitly (@termName@) so that Vty can find its terminfo
+database.
+
+Now you can use Rapid to develop your Vty applications!
+
+-}

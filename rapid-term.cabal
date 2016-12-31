@@ -20,8 +20,11 @@ description:  When developing interactive command line applications in
     This package provides functionality that, when used together with
     the <https://hackage.haskell.org/package/rapid rapid library>, can
     open a persistent terminal that the application can access directly,
-    such that terminal applications can be tested directly with the main
-    GHCi instance.
+    such that terminal applications can be tested with the main GHCi
+    instance.
+    .
+    You can find a tutorial in the documentation of the @Rapid.Term@
+    module.
 
 build-type:         Simple
 cabal-version:      >= 1.10
