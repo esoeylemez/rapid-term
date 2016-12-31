@@ -92,6 +92,7 @@ runTerm start var =
 stats :: MVar Term -> IO a -> IO ()
 stats tRef c =
     terminal tRef $ \h -> do
+        hSetBuffering h NoBuffering
         hPutStrLn h "\n--- App start"
         rt0 <- getTime Monotonic
         ct0 <- getTime ProcessCPUTime
