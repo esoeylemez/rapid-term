@@ -1,12 +1,12 @@
-{ mkDerivation, ansi-terminal, base, clock, kan-extensions, process
-, stdenv, transformers, unix
+{ mkDerivation, base, clock, kan-extensions, process, stdenv
+, transformers, unix
 }:
 mkDerivation {
   pname = "rapid-term";
   version = "0.1.1";
   src = ./.;
   libraryHaskellDepends = [
-    ansi-terminal base clock kan-extensions process transformers unix
+    base clock kan-extensions process transformers unix
   ];
   homepage = "https://github.com/esoeylemez/rapid-term";
   description = "External terminal support for rapid";
