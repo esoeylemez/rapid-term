@@ -3,7 +3,7 @@
 }:
 mkDerivation {
   pname = "rapid-term";
-  version = "0.1.1";
+  version = "0.1.2";
   src = ./.;
   libraryHaskellDepends = [
     base clock kan-extensions process transformers unix
