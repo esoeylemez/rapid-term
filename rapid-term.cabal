@@ -42,10 +42,10 @@ flag Devel
 
 library
     build-depends:
-        base >= 4.8 && < 4.10,
+        base >= 4.8 && < 4.11,
         clock == 0.7.*,
         kan-extensions == 5.0.*,
-        process >= 1.2 && < 1.5,
+        process >= 1.2 && < 1.7,
         transformers >= 0.2 && < 0.6,
         unix == 2.7.*
     if flag(devel)
